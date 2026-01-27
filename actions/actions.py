@@ -7,6 +7,7 @@ Zawiera debouncing żeby unikać wielokrotnego wywołania tej samej akcji.
 
 import time
 import logging
+import threading
 from typing import Callable, Optional
 from dataclasses import dataclass
 
@@ -24,9 +25,12 @@ except ImportError:
     PYNPUT_AVAILABLE = False
     print("[Actions] UWAGA: Brak biblioteki pynput. Zainstaluj: pip install pynput")
 
+_have_printed = False  # Zmienna na poziomie modułu (bez global)
 
 def _is_teams_running() -> bool:
     """Sprawdza czy Microsoft Teams jest uruchomiony."""
+    global _have_printed  # Deklaracja że używamy zmiennej globalnej
+    
     if not PSUTIL_AVAILABLE:
         # Jeśli brak psutil, zakładamy że Teams działa (fallback)
         return True
@@ -34,8 +38,11 @@ def _is_teams_running() -> bool:
     teams_process_names = {"teams.exe", "ms-teams.exe"}
     
     try:
-        print("Lista uruchomionych aplikacji:")
-        print([proc.info['name'] for proc in psutil.process_iter(['name'])])
+        if not _have_printed:
+            print("Lista uruchomionych aplikacji:")
+            print([proc.info['name'] for proc in psutil.process_iter(['name'])])
+            _have_printed = True  # Ustaw na True po pierwszym wypisaniu
+        
         for proc in psutil.process_iter(['name']):
             proc_name = proc.info['name']
             if proc_name and proc_name.lower() in teams_process_names:
@@ -80,9 +87,9 @@ class GestureActionHandler:
 
         # Continue recording → Włączenie mikrofonu (ten sam skrót - toggle)
         "continue_recording_sign": GestureAction(
-            name="Włącz mikrofon",
-            keys=(Key.ctrl, Key.shift, 'm'),
-            description="Włączenie mikrofonu (Teams/Zoom)",
+            name="Włącz nagrywanie",
+            keys=(Key.cmd, 'h'),
+            description="Włączenie nagrywania (Teams/Zoom)",
             cooldown=2.0
         ),
 
@@ -217,12 +224,21 @@ class GestureActionHandler:
             return True
 
         # Gesty związane z mikrofonem - wymagają uruchomionego Teams
-        if gesture in ("stop_recording_sign", "continue_recording_sign"):
+        if gesture == "stop_recording_sign":
             if not _is_teams_running():
                 logger.debug(f"Pominięto akcję '{action.name}' - Teams nie jest uruchomiony")
                 return False
 
         self._last_triggered[gesture] = time.time()
+
+        # Specjalna obsługa dla continue_recording_sign (Win+H) - daj czas na kliknięcie w docelowe okno
+        if gesture == "continue_recording_sign":
+            logger.info("🎤 Nagrywanie za 2 sekundy - kliknij tam, gdzie chcesz wpisać tekst!")
+            print("\n🎤 Nagrywanie za 2 sekundy - kliknij tam, gdzie chcesz wpisać tekst!\n")
+            # Użyj Timer żeby nie blokować głównego wątku
+            timer = threading.Timer(2.0, self._press_keys, args=[action.keys])
+            timer.start()
+            return True
 
         # Standardowa obsługa - skrót klawiszowy
         if action.keys:
