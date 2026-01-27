@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+*.txt
+*.models
+*.pt
+
+# Virtual environments
+venv/
+yenv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test files
+test/
+to-do/
+creating_dataset/data/
+runs/
+models/
+# YOLO training outputs (duże pliki)
+yolo_training/runs/
+yolo_training/dataset/
+*.pt
+!models/*.pt
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+.env
+*.local
