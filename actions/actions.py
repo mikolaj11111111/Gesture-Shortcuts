@@ -1,8 +1,8 @@
 """
-Moduł akcji - wykonywanie skrótów klawiszowych na podstawie wykrytych gestów.
+Actions module - executing keyboard shortcuts based on detected gestures.
 
-Używa pynput do symulacji klawiszy.
-Zawiera debouncing żeby unikać wielokrotnego wywołania tej samej akcji.
+Uses pynput to simulate keystrokes.
+Contains debouncing to avoid triggering the same action multiple times.
 """
 
 import time
@@ -16,32 +16,32 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    print("[Actions] UWAGA: Brak biblioteki psutil. Zainstaluj: pip install psutil")
+    print("[Actions] WARNING: psutil library not found. Install: pip install psutil")
 
 try:
     from pynput.keyboard import Controller, Key
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
-    print("[Actions] UWAGA: Brak biblioteki pynput. Zainstaluj: pip install pynput")
+    print("[Actions] WARNING: pynput library not found. Install: pip install pynput")
 
-_have_printed = False  # Zmienna na poziomie modułu (bez global)
+_have_printed = False  # Module-level variable (without global)
 
 def _is_teams_running() -> bool:
-    """Sprawdza czy Microsoft Teams jest uruchomiony."""
-    global _have_printed  # Deklaracja że używamy zmiennej globalnej
+    """Checks if Microsoft Teams is running."""
+    global _have_printed  # Declaration that we're using a global variable
     
     if not PSUTIL_AVAILABLE:
-        # Jeśli brak psutil, zakładamy że Teams działa (fallback)
+        # If psutil is not available, assume Teams is running (fallback)
         return True
     
     teams_process_names = {"teams.exe", "ms-teams.exe"}
     
     try:
         if not _have_printed:
-            print("Lista uruchomionych aplikacji:")
+            print("List of running applications:")
             print([proc.info['name'] for proc in psutil.process_iter(['name'])])
-            _have_printed = True  # Ustaw na True po pierwszym wypisaniu
+            _have_printed = True  # Set to True after first print
         
         for proc in psutil.process_iter(['name']):
             proc_name = proc.info['name']
@@ -58,48 +58,48 @@ logger = logging.getLogger("actions")
 
 @dataclass
 class GestureAction:
-    """Definicja akcji dla gestu."""
+    """Definition of an action for a gesture."""
     name: str
-    keys: tuple  # Klawisze do naciśnięcia
+    keys: tuple  # Keys to press
     description: str
-    cooldown: float = 2.0  # Minimalny czas między wywołaniami (sekundy)
+    cooldown: float = 2.0  # Minimum time between triggers (seconds)
 
 
 class GestureActionHandler:
     """
-    Obsługuje wykonywanie akcji na podstawie wykrytych gestów.
+    Handles executing actions based on detected gestures.
 
-    Cechy:
-    - Debouncing (cooldown między akcjami)
-    - Minimalna pewność do wywołania akcji
-    - Logowanie wykonanych akcji
+    Features:
+    - Debouncing (cooldown between actions)
+    - Minimum confidence to trigger action
+    - Logging of executed actions
     """
 
-    # Domyślne mapowanie gestów na skróty klawiszowe
+    # Default mapping of gestures to keyboard shortcuts
     DEFAULT_ACTIONS = {
-        # Stop recording → Wyciszenie mikrofonu (Ctrl+Shift+M - Teams/Zoom)
+        # Stop recording → Mute microphone (Ctrl+Shift+M - Teams/Zoom)
         "stop_recording_sign": GestureAction(
-            name="Wycisz mikrofon",
+            name="Mute microphone",
             keys=(Key.ctrl, Key.shift, 'm'),
-            description="Wyciszenie/włączenie mikrofonu (Teams/Zoom)",
+            description="Mute/unmute microphone (Teams/Zoom)",
             cooldown=2.0
         ),
 
-        # Continue recording → Włączenie mikrofonu (ten sam skrót - toggle)
+        # Continue recording → Enable microphone (same shortcut - toggle)
         "continue_recording_sign": GestureAction(
-            name="Włącz nagrywanie",
+            name="Start recording",
             keys=(Key.cmd, 'h'),
-            description="Włączenie nagrywania (Teams/Zoom)",
+            description="Enable recording (Teams/Zoom)",
             cooldown=2.0
         ),
 
-        # Nail biting → Powiadomienie (Win+A otwiera centrum powiadomień)
-        # Alternatywnie możemy użyć własnego powiadomienia
+        # Nail biting → Notification (Win+A opens notification center)
+        # Alternatively we can use a custom notification
         "nail_biting_sign": GestureAction(
-            name="Alert - obgryzanie paznokci",
-            keys=None,  # Specjalna obsługa - powiadomienie zamiast klawiszy
-            description="Powiadomienie o wykryciu obgryzania paznokci",
-            cooldown=5.0  # Dłuższy cooldown żeby nie spamować
+            name="Alert - nail biting",
+            keys=None,  # Special handling - notification instead of keys
+            description="Notification about nail biting detection",
+            cooldown=5.0  # Longer cooldown to avoid spamming
         ),
     }
 
@@ -110,32 +110,32 @@ class GestureActionHandler:
         custom_actions: Optional[dict] = None
     ):
         """
-        Inicjalizuje handler akcji.
+        Initializes the action handler.
 
         Args:
-            min_confidence: Minimalna pewność do wywołania akcji
-            enabled: Czy akcje są włączone
-            custom_actions: Własne mapowanie gestów (nadpisuje domyślne)
+            min_confidence: Minimum confidence to trigger action
+            enabled: Whether actions are enabled
+            custom_actions: Custom gesture mapping (overrides defaults)
         """
         self.enabled = enabled and PYNPUT_AVAILABLE
         self.min_confidence = min_confidence
         self.actions = custom_actions or self.DEFAULT_ACTIONS.copy()
 
-        # Czas ostatniego wywołania dla każdego gestu (debouncing)
+        # Time of last trigger for each gesture (debouncing)
         self._last_triggered: dict[str, float] = {}
 
-        # Callback dla powiadomień (można nadpisać)
+        # Callback for notifications (can be overridden)
         self.on_notification: Optional[Callable[[str, str], None]] = None
 
         if self.enabled:
             self._keyboard = Controller()
-            logger.info("GestureActionHandler zainicjalizowany")
+            logger.info("GestureActionHandler initialized")
         else:
             self._keyboard = None
-            logger.warning("GestureActionHandler wyłączony (brak pynput lub enabled=False)")
+            logger.warning("GestureActionHandler disabled (missing pynput or enabled=False)")
 
     def _can_trigger(self, gesture: str) -> bool:
-        """Sprawdza czy można wywołać akcję (debouncing)."""
+        """Checks if action can be triggered (debouncing)."""
         if gesture not in self.actions:
             return False
 
@@ -145,11 +145,11 @@ class GestureActionHandler:
         return (time.time() - last_time) >= action.cooldown
 
     def _press_keys(self, keys: tuple):
-        """Naciska kombinację klawiszy."""
+        """Presses a key combination."""
         if not self._keyboard or not keys:
             return
 
-        # Naciśnij wszystkie modyfikatory
+        # Press all modifiers
         modifiers = [k for k in keys[:-1]]
         key = keys[-1]
 
@@ -164,16 +164,16 @@ class GestureActionHandler:
                 self._keyboard.release(mod)
 
         except Exception as e:
-            logger.error(f"Błąd przy naciskaniu klawiszy: {e}")
+            logger.error(f"Error pressing keys: {e}")
 
     def _show_notification(self, title: str, message: str):
-        """Pokazuje powiadomienie systemowe (Windows 10 toast)."""
-        # Użyj callbacka jeśli ustawiony
+        """Shows a system notification (Windows 10 toast)."""
+        # Use callback if set
         if self.on_notification:
             self.on_notification(title, message)
             return
 
-        # Windows toast notification przez winotify (stabilniejsza niż win10toast)
+        # Windows toast notification via winotify (more stable than win10toast)
         try:
             from winotify import Notification
             toast = Notification(
@@ -184,20 +184,20 @@ class GestureActionHandler:
             )
             toast.show()
         except ImportError:
-            # Ostateczny fallback - print
-            logger.warning(f"POWIADOMIENIE: {title} - {message}")
+            # Final fallback - print
+            logger.warning(f"NOTIFICATION: {title} - {message}")
             print(f"\n🔔 {title}: {message}\n")
 
     def trigger(self, gesture: str, confidence: float) -> bool:
         """
-        Próbuje wywołać akcję dla gestu.
+        Attempts to trigger an action for a gesture.
 
         Args:
-            gesture: Nazwa wykrytego gestu
-            confidence: Pewność detekcji (0.0 - 1.0)
+            gesture: Name of the detected gesture
+            confidence: Detection confidence (0.0 - 1.0)
 
         Returns:
-            True jeśli akcja została wywołana, False w przeciwnym razie
+            True if action was triggered, False otherwise
         """
         if not self.enabled:
             return False
@@ -213,43 +213,43 @@ class GestureActionHandler:
 
         action = self.actions[gesture]
 
-        # Specjalna obsługa dla nail_biting (powiadomienie)
+        # Special handling for nail_biting (notification)
         if gesture == "nail_biting_sign":
             self._last_triggered[gesture] = time.time()
             self._show_notification(
-                "Wykryto obgryzanie paznokci!",
-                "Przestań obgryzać paznokcie 😤"
+                "Nail biting detected!",
+                "Stop biting your nails 😤"
             )
-            logger.info(f"Akcja: {action.name}")
+            logger.info(f"Action: {action.name}")
             return True
 
-        # Gesty związane z mikrofonem - wymagają uruchomionego Teams
+        # Microphone-related gestures - require Teams to be running
         if gesture == "stop_recording_sign":
             if not _is_teams_running():
-                logger.debug(f"Pominięto akcję '{action.name}' - Teams nie jest uruchomiony")
+                logger.debug(f"Skipped action '{action.name}' - Teams is not running")
                 return False
 
         self._last_triggered[gesture] = time.time()
 
-        # Specjalna obsługa dla continue_recording_sign (Win+H) - daj czas na kliknięcie w docelowe okno
+        # Special handling for continue_recording_sign (Win+H) - give time to click in target window
         if gesture == "continue_recording_sign":
-            logger.info("🎤 Nagrywanie za 2 sekundy - kliknij tam, gdzie chcesz wpisać tekst!")
-            print("\n🎤 Nagrywanie za 2 sekundy - kliknij tam, gdzie chcesz wpisać tekst!\n")
-            # Użyj Timer żeby nie blokować głównego wątku
+            logger.info("🎤 Recording in 2 seconds - click where you want to type!")
+            print("\n🎤 Recording in 2 seconds - click where you want to type!\n")
+            # Use Timer to not block the main thread
             timer = threading.Timer(2.0, self._press_keys, args=[action.keys])
             timer.start()
             return True
 
-        # Standardowa obsługa - skrót klawiszowy
+        # Standard handling - keyboard shortcut
         if action.keys:
             self._press_keys(action.keys)
-            logger.info(f"Akcja: {action.name} | Klawisze: {action.keys}")
+            logger.info(f"Action: {action.name} | Keys: {action.keys}")
             return True
 
         return False
 
     def get_action_info(self, gesture: str) -> Optional[str]:
-        """Zwraca opis akcji dla gestu."""
+        """Returns description of action for a gesture."""
         if gesture in self.actions:
             return self.actions[gesture].description
         return None

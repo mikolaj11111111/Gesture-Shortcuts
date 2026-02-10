@@ -1,9 +1,9 @@
 import cv2
 from ultralytics import YOLO
 
-# 1. Ładowanie modelu
-# 'yolov8n-pose.pt' to wersja "Nano" - najszybsza, działa płynnie na CPU.
-# Przy pierwszym uruchomieniu biblioteka sama pobierze ten plik (ok. 6 MB).
+# 1. Load model
+# 'yolov8n-pose.pt' is the "Nano" version - fastest, runs smoothly on CPU.
+# On first run, the library will automatically download this file (~6 MB).
 model = YOLO('yolov8n-pose.pt')
 
 camera = cv2.VideoCapture(0)
@@ -13,26 +13,26 @@ while True:
     if not ret:
         break
 
-    # Odbicie lustrzane (opcjonalne, dla wygody)
+    # Mirror flip (optional, for convenience)
     frame = cv2.flip(frame, 1)
 
-    # 2. Detekcja i śledzenie (stream=True przyspiesza działanie w pętlach)
-    # conf=0.5 to próg pewności (podobnie jak w MediaPipe)
+    # 2. Detection and tracking (stream=True speeds up operation in loops)
+    # conf=0.5 is the confidence threshold (similar to MediaPipe)
     results = model(frame, stream=True, conf=0.5)
 
-    # YOLO zwraca generator wyników, musimy go przetworzyć w pętli
+    # YOLO returns a generator of results, we need to process it in a loop
     for result in results:
-        # 3. Rysowanie
-        # Funkcja .plot() automatycznie rysuje szkielet na obrazie
+        # 3. Drawing
+        # The .plot() function automatically draws skeleton on the image
         annotated_frame = result.plot()
         
-        # 4. Dostęp do współrzędnych (jeśli chcesz nimi sterować)
-        # result.keypoints.xy zwraca tensor ze współrzędnymi [x, y]
+        # 4. Access to coordinates (if you want to control them)
+        # result.keypoints.xy returns tensor with [x, y] coordinates
         if result.keypoints is not None:
             keypoints = result.keypoints.xy.cpu().numpy()
-            # print(keypoints) # Odkomentuj, aby widzieć liczby w konsoli
+            # print(keypoints) # Uncomment to see numbers in console
 
-        # Wyświetlanie
+        # Display
         cv2.imshow('YOLOv8 Pose', annotated_frame)
 
     if cv2.waitKey(1) == ord('q'):
