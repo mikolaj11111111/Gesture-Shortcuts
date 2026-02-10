@@ -11,12 +11,17 @@ build/
 *.txt
 *.models
 *.pt
+*.md
 
 # Virtual environments
 venv/
 yenv/
 .venv/
 env/
+
+# Claude
+.claude/
+rules/
 
 # IDE
 .idea/
